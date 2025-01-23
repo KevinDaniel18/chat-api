@@ -15,7 +15,6 @@ exports.getMessages = async (req, res) => {
       },
     });
 
-
     res.json(messages);
   } catch (error) {
     res.status(500).json({ error: "No se pudieron obtener los mensajes" });
@@ -38,5 +37,48 @@ exports.sendMessage = async (req, res) => {
     res.json(message);
   } catch (error) {
     res.status(500).json({ error: "No se pudo guardar el mensaje" });
+  }
+};
+
+exports.deleteMessageForUser = async (req, res) => {
+  const { userId, receiverId } = req.body;
+
+  try {
+    await prisma.message.updateMany({
+      where: {
+        senderId: Number(userId),
+        receiverId: Number(receiverId),
+        NOT: {
+          deletedForUserIds: {
+            has: userId,
+          },
+        },
+      },
+      data: {
+        deletedForUserIds: {
+          push: userId,
+        },
+      },
+    });
+
+    await prisma.message.updateMany({
+      where: {
+        senderId: receiverId,
+        receiverId: userId,
+        NOT: {
+          deletedForUserIds: {
+            has: userId,
+          },
+        },
+      },
+      data: {
+        deletedForUserIds: {
+          push: userId,
+        },
+      },
+    });
+    res.status(201).json({ message: "Messages deleted successfully" });
+  } catch (error) {
+    console.error("Error al eliminar mensajes:", error);
   }
 };

@@ -3,9 +3,11 @@ const router = express.Router();
 const {
   getMessages,
   sendMessage,
+  deleteMessageForUser
 } = require("../controllers/messageController");
 
-router.get("/:senderId/:receiverId", getMessages);
 router.post("/send", sendMessage);
+router.post("/delete-message-for-user", deleteMessageForUser)
+router.get("/:senderId/:receiverId", getMessages);
 
 module.exports = router;

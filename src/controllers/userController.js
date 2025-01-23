@@ -226,12 +226,6 @@ const getUsersSentMessages = async (req, res) => {
       select: { receiverId: true },
     });
 
-    if (sentMessages.length === 0) {
-      return res
-        .status(404)
-        .json({ error: "No se encontraron mensajes enviados" });
-    }
-
     const userIds = [
       ...new Set(sentMessages.map((message) => message.receiverId)),
     ];
@@ -250,6 +244,93 @@ const getUsersSentMessages = async (req, res) => {
   }
 };
 
+const getUsersWithPendingMessages = async (req, res) => {
+  const { userId } = req.query;
+
+  if (!userId) {
+    return res.status(400).json({ error: "El ID del usuario es requerido" });
+  }
+
+  try {
+    // Obtenemos los mensajes recibidos que están marcados como pendientes
+    const receivedMessages = await prisma.message.findMany({
+      where: {
+        receiverId: Number(userId), // ID del receptor
+        isPending: true, // Mensajes pendientes
+        NOT: {
+          senderId: Number(userId), // Evitar mensajes enviados por el mismo receptor
+        },
+        AND: {
+          sender: {
+            receivedMessages: {
+              none: {
+                senderId: Number(userId),
+              },
+            },
+          },
+        },
+      },
+      select: {
+        id: true, // Agregamos id del mensaje
+        content: true, // Agregamos contenido del mensaje
+        createdAt: true, // Agregamos fecha de creación
+        senderId: true, // Mantenemos el ID del remitente
+        isPending: true, // Estado pendiente
+        isInteracted: true, // Estado de interacción
+      },
+      orderBy: {
+        createdAt: "asc",
+      },
+    });
+
+    const firstMessage = receivedMessages[0] || null;
+
+    // Obtenemos los usuarios que enviaron los mensajes pendientes
+    const senderIds = [
+      ...new Set(receivedMessages.map((message) => message.senderId)),
+    ];
+    const users = await prisma.user.findMany({
+      where: { id: { in: senderIds } },
+    });
+    return res.status(200).json({
+      users,
+      firstPendingMessage: firstMessage,
+    });
+  } catch (error) {
+    console.error(
+      "Error al obtener los usuarios con mensajes pendientes:",
+      error
+    );
+    return res
+      .status(500)
+      .json({ error: "Error al obtener los usuarios con mensajes pendientes" });
+  }
+};
+
+const updatedUser = async (req, res) => {
+  const { userId, ...updates } = req.body;
+  try {
+    const updatedUser = await prisma.user.update({
+      where: { id: Number(userId) },
+      data: updates,
+    });
+
+    const updatedFields = Object.keys(updates);
+    res
+      .status(200)
+      .json({
+        message: "User updated successfully",
+        user: updatedUser,
+        updatedFields: updatedFields,
+      });
+  } catch (error) {
+    console.error(error);
+    res
+      .status(500)
+      .json({ error: "An error occurred while updating the user" });
+  }
+};
+
 module.exports = {
   updateProfilePicture,
   getUserById,
@@ -258,5 +339,7 @@ module.exports = {
   likeUser,
   getLikedUsers,
   deleteProfilePicture,
-  getUsersSentMessages
+  getUsersSentMessages,
+  getUsersWithPendingMessages,
+  updatedUser,
 };
