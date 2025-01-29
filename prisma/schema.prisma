@@ -39,7 +39,7 @@ model UserLike {
 
 model Message {
   id                Int      @id @default(autoincrement())
-  content           String
+  content           String?
   senderId          Int
   sender            User     @relation("SentMessages", fields: [senderId], references: [id])
   receiverId        Int
@@ -48,4 +48,5 @@ model Message {
   isPending         Boolean  @default(true)
   isInteracted      Boolean  @default(false)
   deletedForUserIds Int[]    @default([])
+  fileUrls          String[] @default([])
 }

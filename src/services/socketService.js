@@ -60,58 +60,72 @@ const socketService = (server) => {
       socket.join(roomId);
     });
 
-    socket.on("sendMessage", async ({ senderId, receiverId, content }) => {
-      //console.log("Evento 'sendMessage' recibido:", { senderId, receiverId, content });
-      try {
-        // Guardar el mensaje en la base de datos
-        const hasInteracted = await haveUsersInteracted(senderId, receiverId);
-        const newMessage = await prisma.message.create({
-          data: {
-            content,
-            senderId,
-            receiverId,
-            isPending: !hasInteracted,
-            isInteracted: true,
-          },
+    socket.on(
+      "sendMessage",
+      async ({ senderId, receiverId, content, files }) => {
+        console.log("Evento 'sendMessage' recibido:", {
+          senderId,
+          receiverId,
+          content,
+          files,
         });
+        try {
+          const fileUrls = files || [];
 
-        await updatePendingMessages(receiverId);
-
-        const roomId = createRoomId(senderId, receiverId);
-        io.to(roomId).emit("receiveMessage", newMessage);
-
-        socket.emit("messageSent", newMessage);
-
-        const receiver = await prisma.user.findUnique({
-          where: { id: receiverId },
-          select: { notificationToken: true },
-        });
-
-        if (receiver?.notificationToken) {
-          const sender = await prisma.user.findUnique({
-            where: { id: senderId },
-            select: { name: true },
+          // Guardar el mensaje en la base de datos
+          const hasInteracted = await haveUsersInteracted(senderId, receiverId);
+          const newMessage = await prisma.message.create({
+            data: {
+              content: content || undefined,
+              senderId,
+              receiverId,
+              isPending: !hasInteracted,
+              isInteracted: true,
+              fileUrls,
+            },
           });
 
-          const title = `${sender?.name || "un usuario"}`;
-          const body = content;
-          const data = { senderId, receiverId, userName: sender.name };
-          await sendPushNotification(
-            receiver.notificationToken,
-            title,
-            body,
-            data
-          );
-        }
+          await updatePendingMessages(receiverId);
 
-        socket.on("likeReceived", ({ likerId, likedId }) => {
-          const roomId = createRoomId(likerId, likedId);
-          io.to(roomId).emit("receiveLike", { likerId, likedId });
-        });
-      } catch (error) {
-        console.error("Error al guardar y enviar el mensaje:", error);
+          const roomId = createRoomId(senderId, receiverId);
+          io.to(roomId).emit("receiveMessage", newMessage);
+
+          socket.emit("messageSent", newMessage);
+
+          const receiver = await prisma.user.findUnique({
+            where: { id: receiverId },
+            select: { notificationToken: true },
+          });
+
+          if (receiver?.notificationToken) {
+            const sender = await prisma.user.findUnique({
+              where: { id: senderId },
+              select: { name: true },
+            });
+
+            const title = `${sender?.name || "un usuario"}`;
+            const manyFiles =
+              fileUrls.length === 1 ? "sent a file" : "sent files";
+
+            const body = content ? content : manyFiles;
+            const data = { senderId, receiverId, userName: sender.name };
+            await sendPushNotification(
+              receiver.notificationToken,
+              title,
+              body,
+              data
+            );
+          }
+
+          socket.on("likeReceived", ({ likerId, likedId }) => {
+            const roomId = createRoomId(likerId, likedId);
+            io.to(roomId).emit("receiveLike", { likerId, likedId });
+          });
+        } catch (error) {
+          console.error("Error al guardar y enviar el mensaje:", error);
+        }
       }
-    });
+    );
 
     socket.on("enterChat", async ({ userId, receiverId }) => {
       try {
