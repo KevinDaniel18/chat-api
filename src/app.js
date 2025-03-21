@@ -15,5 +15,6 @@ app.use(
 app.use("/auth", require("./routes/auth"));
 app.use("/user", require("./routes/user"));
 app.use("/messages", require("./routes/message"));
+app.use("/posts", require("./routes/posts"))
 
 module.exports = app;

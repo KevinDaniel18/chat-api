@@ -2,6 +2,7 @@ const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
 const { io } = require("../services/socketService");
 const sendPushNotification = require("../services/notificationService");
+const bcrypt = require("bcrypt");
 
 /**
  * Actualiza la URI de la imagen de perfil de un usuario
@@ -180,12 +181,48 @@ const getLikedUsers = async (req, res) => {
   try {
     const likedUsers = await prisma.userLike.findMany({
       where: { likerId: parseInt(userId, 10) },
-      select: { likedId: true },
+      select: {
+        liked: {
+          select: {
+            id: true,
+            name: true,
+            profilePicture: true,
+            likes: true,
+            about: true,
+          },
+        },
+      },
     });
-    return res.status(200).json(likedUsers.map((like) => like.likedId));
+    return res.status(200).json(likedUsers.map(({ liked }) => liked));
   } catch (error) {
     console.error("Error al obtener los likes:", error);
     return res.status(500).json({ error: "Error al obtener los likes" });
+  }
+};
+
+const getUsersWhoLiked = async (req, res) => {
+  const { userId } = req.query;
+  try {
+    const usersWhoLiked = await prisma.userLike.findMany({
+      where: { likedId: parseInt(userId, 10) },
+      select: {
+        liker: {
+          select: {
+            id: true,
+            name: true,
+            profilePicture: true,
+            likes: true,
+            about: true,
+          },
+        },
+      },
+    });
+    return res.status(200).json(usersWhoLiked.map(({ liker }) => liker));
+  } catch (error) {
+    console.error("Error al obtener los usuarios que dieron like:", error);
+    return res
+      .status(500)
+      .json({ error: "Error al obtener los likes recibidos" });
   }
 };
 
@@ -221,14 +258,25 @@ const getUsersSentMessages = async (req, res) => {
   }
 
   try {
-    const sentMessages = await prisma.message.findMany({
-      where: { senderId: parseInt(userId, 10) },
-      select: { receiverId: true },
+    const messages = await prisma.message.findMany({
+      where: {
+        OR: [
+          {
+            senderId: parseInt(userId, 10), // Mensajes enviados
+            isInteracted: true,
+          },
+          {
+            receiverId: parseInt(userId, 10), // Mensajes recibidos
+            isPending: false, // Ya leídos
+          },
+        ],
+      },
+      select: { senderId: true, receiverId: true },
     });
 
     const userIds = [
-      ...new Set(sentMessages.map((message) => message.receiverId)),
-    ];
+      ...new Set(messages.flatMap((msg) => [msg.senderId, msg.receiverId])),
+    ].filter((id) => id !== parseInt(userId, 10)); // Excluir el propio ID
 
     const users = await prisma.user.findMany({
       where: { id: { in: userIds } },
@@ -237,7 +285,7 @@ const getUsersSentMessages = async (req, res) => {
     return res.status(200).json(users);
   } catch (error) {
     console.error(
-      "Error al obtener los usuarios a los que se les han enviado mensajes:",
+      "Error al obtener los usuarios con los que se ha interactuado:",
       error
     );
     return res.status(500).json({ error: "Error al obtener los usuarios" });
@@ -316,18 +364,51 @@ const updatedUser = async (req, res) => {
     });
 
     const updatedFields = Object.keys(updates);
-    res
-      .status(200)
-      .json({
-        message: "User updated successfully",
-        user: updatedUser,
-        updatedFields: updatedFields,
-      });
+    res.status(200).json({
+      message: "User updated successfully",
+      user: updatedUser,
+      updatedFields: updatedFields,
+    });
   } catch (error) {
     console.error(error);
     res
       .status(500)
       .json({ error: "An error occurred while updating the user" });
+  }
+};
+
+const deleteUser = async (req, res) => {
+  const { userId } = req.params;
+  const { password, isBiometric } = req.body;
+
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: Number(userId) },
+    });
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    if (!isBiometric) {
+      if (!user.password) {
+        return res
+          .status(400)
+          .json({ message: "No password set for this account" });
+      }
+
+      const isMatch = await bcrypt.compare(password, user.password);
+      if (!isMatch) {
+        return res.status(401).json({ message: "Incorrect password" });
+      }
+    }
+
+    await prisma.user.delete({ where: { id: Number(userId) } });
+
+    res.status(200).json({ message: "User deleted successfully" });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Internal Server Error" });
   }
 };
 
@@ -338,8 +419,10 @@ module.exports = {
   saveNotificationToken,
   likeUser,
   getLikedUsers,
+  getUsersWhoLiked,
   deleteProfilePicture,
   getUsersSentMessages,
   getUsersWithPendingMessages,
   updatedUser,
+  deleteUser,
 };

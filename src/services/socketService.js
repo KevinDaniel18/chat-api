@@ -23,9 +23,9 @@ const haveUsersInteracted = async (user1Id, user2Id) => {
 const getPendingMessagesCount = async (userId) => {
   return await prisma.message.count({
     where: {
-      receiverId: userId,
+      receiverId: Number(userId),
       isPending: true,
-      NOT: { senderId: userId },
+      NOT: { senderId: Number(userId) },
     },
   });
 };
@@ -108,7 +108,12 @@ const socketService = (server) => {
               fileUrls.length === 1 ? "sent a file" : "sent files";
 
             const body = content ? content : manyFiles;
-            const data = { senderId, receiverId, userName: sender.name };
+            const data = {
+              senderId,
+              receiverId,
+              userName: sender.name,
+              isPending: !hasInteracted,
+            };
             await sendPushNotification(
               receiver.notificationToken,
               title,
@@ -138,9 +143,50 @@ const socketService = (server) => {
           data: { isPending: false },
         });
 
+        const hasInteracted = await haveUsersInteracted(userId, receiverId);
+
+        if (!hasInteracted) {
+          await prisma.message.create({
+            data: {
+              senderId: userId,
+              receiverId: receiverId,
+              isPending: false,
+              isInteracted: true,
+            },
+          });
+        }
+
         await updatePendingMessages(userId);
       } catch (error) {
         console.error("Error al actualizar mensajes pendientes:", error);
+      }
+    });
+
+    socket.on("deleteMessage", async (messageId, senderId, receiverId) => {
+      try {
+        const message = await prisma.message.findUnique({
+          where: { id: messageId },
+          select: { senderId: true, receiverId: true },
+        });
+
+        if (!message) {
+          return socket.emit("error", { message: "Mensaje no encontrado" });
+        }
+
+        await prisma.message.delete({ where: { id: messageId } });
+
+        const roomId = createRoomId(senderId, receiverId);
+        io.to(roomId).emit("messageDeleted", messageId);
+
+        // Actualiza los mensajes pendientes del receptor
+        await updatePendingMessages(receiverId);
+
+        await updatePendingMessages(senderId);
+
+        console.log(`Mensaje ${messageId} eliminado exitosamente`);
+      } catch (error) {
+        console.error("Error al eliminar el mensaje:", error);
+        socket.emit("error", { message: "No se pudo eliminar el mensaje" });
       }
     });
 

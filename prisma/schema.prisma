@@ -14,18 +14,43 @@ datasource db {
 }
 
 model User {
-  id                Int        @id @default(autoincrement())
+  id                Int          @id @default(autoincrement())
   name              String
-  email             String     @unique
-  password          String
+  about             String?
+  email             String       @unique
+  password          String?
   profilePicture    String?
   notificationToken String?
-  likes             Int        @default(0)
-  createdAt         DateTime   @default(now())
-  sentMessages      Message[]  @relation("SentMessages")
-  receivedMessages  Message[]  @relation("ReceivedMessages")
-  likesGiven        UserLike[] @relation("LikesGiven")
-  likesReceived     UserLike[] @relation("LikesReceived")
+  likes             Int          @default(0)
+  createdAt         DateTime     @default(now())
+  sentMessages      Message[]    @relation("SentMessages")
+  receivedMessages  Message[]    @relation("ReceivedMessages")
+  likesGiven        UserLike[]   @relation("LikesGiven")
+  likesReceived     UserLike[]   @relation("LikesReceived")
+  posts             Posts[]
+  PostsLikes        PostsLikes[]
+}
+
+model Posts {
+  id          Int          @id @default(autoincrement())
+  authorId    Int
+  author      User         @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  file        String?
+  description String?
+  createdAt   DateTime     @default(now())
+  likes       Int          @default(0)
+  PostsLikes  PostsLikes[]
+}
+
+model PostsLikes {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  postId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post      Posts    @relation(fields: [postId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, postId])
 }
 
 model UserLike {
@@ -41,9 +66,9 @@ model Message {
   id                Int      @id @default(autoincrement())
   content           String?
   senderId          Int
-  sender            User     @relation("SentMessages", fields: [senderId], references: [id])
+  sender            User     @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
   receiverId        Int
-  receiver          User     @relation("ReceivedMessages", fields: [receiverId], references: [id])
+  receiver          User     @relation("ReceivedMessages", fields: [receiverId], references: [id], onDelete: Cascade)
   createdAt         DateTime @default(now())
   isPending         Boolean  @default(true)
   isInteracted      Boolean  @default(false)
