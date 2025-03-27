@@ -1,5 +1,7 @@
-const prisma = require("../prisma");
-exports.getMessages = async (req, res) => {
+import { Request, Response } from "express";
+import prisma from "../prisma";
+
+export const getMessages = async (req: Request, res: Response) => {
   const { senderId, receiverId } = req.params;
 
   try {
@@ -22,7 +24,7 @@ exports.getMessages = async (req, res) => {
 };
 
 // Ruta para enviar un mensaje de forma tradicional (sin WebSockets)
-exports.sendMessage = async (req, res) => {
+export const sendMessage = async (req: Request, res: Response) => {
   const { senderId, receiverId, content } = req.body;
   console.log("Datos recibidos:", { senderId, receiverId, content });
   try {
@@ -40,7 +42,7 @@ exports.sendMessage = async (req, res) => {
   }
 };
 
-exports.deleteMessageForUser = async (req, res) => {
+export const deleteMessageForUser = async (req: Request, res: Response) => {
   const { userId, receiverId } = req.body;
 
   try {
@@ -82,4 +84,3 @@ exports.deleteMessageForUser = async (req, res) => {
     console.error("Error al eliminar mensajes:", error);
   }
 };
-

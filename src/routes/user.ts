@@ -1,6 +1,5 @@
-const express = require("express");
-const router = express.Router();
-const {
+import { Router } from "express";
+import {
   updateProfilePicture,
   getUserById,
   getAllUser,
@@ -13,7 +12,9 @@ const {
   getUsersWithPendingMessages,
   updatedUser,
   deleteUser,
-} = require("../controllers/userController");
+} from "../controllers/userController";
+
+const router = Router();
 
 router.get("/likedUser", getLikedUsers);
 router.get("/usersWhoLiked", getUsersWhoLiked);
@@ -28,4 +29,4 @@ router.get("/allUsers", getAllUser);
 router.get("/:id", getUserById);
 router.delete("/delete-user/:userId", deleteUser);
 
-module.exports = router;
+export default router;

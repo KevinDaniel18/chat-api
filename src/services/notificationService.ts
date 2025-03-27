@@ -1,8 +1,13 @@
-const Expo = require("expo-server-sdk").Expo;
+import { Expo } from "expo-server-sdk";
 
 const expo = new Expo();
 
-async function sendPushNotification(token, title, body, data) {
+export default async function sendPushNotification(
+  token: string,
+  title: string,
+  body: string,
+  data: Record<string, unknown> = {}
+) {
   if (!Expo.isExpoPushToken(token)) {
     console.error(`Push token ${token} is not a valid Expo push token`);
     return;
@@ -31,5 +36,3 @@ async function sendPushNotification(token, title, body, data) {
     }
   }
 }
-
-module.exports = sendPushNotification;

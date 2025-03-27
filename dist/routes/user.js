@@ -1,0 +1,18 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const userController_1 = require("../controllers/userController");
+const router = (0, express_1.Router)();
+router.get("/likedUser", userController_1.getLikedUsers);
+router.get("/usersWhoLiked", userController_1.getUsersWhoLiked);
+router.post("/like", userController_1.likeUser);
+router.post("/updateProfilePicture", userController_1.updateProfilePicture);
+router.post("/deleteProfilePicture", userController_1.deleteProfilePicture);
+router.post("/update-user", userController_1.updatedUser);
+router.patch("/token", userController_1.saveNotificationToken);
+router.get("/sent-messages", userController_1.getUsersSentMessages);
+router.get("/pending-messages", userController_1.getUsersWithPendingMessages);
+router.get("/allUsers", userController_1.getAllUser);
+router.get("/:id", userController_1.getUserById);
+router.delete("/delete-user/:userId", userController_1.deleteUser);
+exports.default = router;

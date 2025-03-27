@@ -1,21 +1,20 @@
-const { PrismaClient } = require("@prisma/client");
-const prisma = new PrismaClient();
-const { io } = require("../services/socketService");
-const sendPushNotification = require("../services/notificationService");
-const bcrypt = require("bcrypt");
+import { Response, Request } from "express";
+import { PrismaClient } from "@prisma/client";
+import { io } from "../services/socketService";
+import sendPushNotification from "../services/notificationService";
+import bcrypt from "bcrypt";
 
-/**
- * Actualiza la URI de la imagen de perfil de un usuario
- * @param {Request} req
- * @param {Response} res
- */
-const updateProfilePicture = async (req, res) => {
+const prisma = new PrismaClient();
+
+export const updateProfilePicture = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
   const { userId, profilePicture } = req.body;
 
   if (!userId || !profilePicture) {
-    return res
-      .status(400)
-      .json({ error: "userId y profilePicture son requeridos" });
+    res.status(400).json({ error: "userId y profilePicture son requeridos" });
+    return;
   }
 
   try {
@@ -23,22 +22,24 @@ const updateProfilePicture = async (req, res) => {
       where: { id: parseInt(userId, 10) },
       data: { profilePicture },
     });
-    return res
+    res
       .status(200)
       .json({ message: "Imagen de perfil actualizada", user: updatedUser });
   } catch (error) {
     console.error(error);
-    return res
-      .status(500)
-      .json({ error: "Error al actualizar la imagen de perfil" });
+    res.status(500).json({ error: "Error al actualizar la imagen de perfil" });
   }
 };
 
-const getUserById = async (req, res) => {
+export const getUserById = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
   const { id } = req.params;
 
   if (!id) {
-    return res.status(400).json({ error: "El ID del usuario es requerido" });
+    res.status(400).json({ error: "El ID del usuario es requerido" });
+    return;
   }
 
   try {
@@ -47,56 +48,64 @@ const getUserById = async (req, res) => {
     });
 
     if (!user) {
-      return res.status(404).json({ error: "Usuario no encontrado" });
+      res.status(404).json({ error: "Usuario no encontrado" });
+      return;
     }
 
-    return res.status(200).json(user);
+    res.status(200).json(user);
   } catch (error) {
     console.error(error);
-    return res.status(500).json({ error: "Error al obtener el usuario" });
+    res.status(500).json({ error: "Error al obtener el usuario" });
   }
 };
 
-const getAllUser = async (req, res) => {
+export const getAllUser = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
   try {
     const users = await prisma.user.findMany();
     if (users.length === 0) {
-      return res.status(404).json({ error: "No se encontraron usuarios" });
+      res.status(404).json({ error: "No se encontraron usuarios" });
+      return;
     }
 
-    return res.status(200).json(users);
+    res.status(200).json(users);
   } catch (error) {
     console.error(error);
-    return res.status(500).json({ error: "Error al obtener los usuarios" });
+    res.status(500).json({ error: "Error al obtener los usuarios" });
   }
 };
 
-const saveNotificationToken = async (req, res) => {
+export const saveNotificationToken = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
   const { userId, notificationToken } = req.body;
   try {
     const updatedUser = await prisma.user.update({
       where: { id: parseInt(userId, 10) },
       data: { notificationToken },
     });
-    return res
-      .status(200)
-      .json({ message: "Token Guardado", user: updatedUser });
+    res.status(200).json({ message: "Token Guardado", user: updatedUser });
   } catch (error) {
     console.error(error);
   }
 };
 
-const likeUser = async (req, res) => {
+export const likeUser = async (req: Request, res: Response): Promise<void> => {
   const { likerId, likedId } = req.body;
 
   if (!likerId || !likedId) {
-    return res.status(400).json({ error: "likerId y likedId son requeridos" });
+    res.status(400).json({ error: "likerId y likedId son requeridos" });
+    return;
   }
 
   if (likerId === likedId) {
-    return res
+    res
       .status(400)
       .json({ error: "Un usuario no puede darse like a sí mismo" });
+    return;
   }
 
   try {
@@ -122,7 +131,7 @@ const likeUser = async (req, res) => {
         },
       });
 
-      return res.status(200).json({ message: "Like eliminado" });
+      res.status(200).json({ message: "Like eliminado" });
     }
 
     // Crear un nuevo registro de like
@@ -153,7 +162,7 @@ const likeUser = async (req, res) => {
 
     if (likedUser?.notificationToken) {
       const title = `¡Tienes un nuevo like!`;
-      const body = `${likerUser.name} te dio un like.`;
+      const body = `${likerUser?.name} te dio un like.`;
       const data = { likerId, likedId, userName: likedUser.name };
 
       await sendPushNotification(
@@ -168,19 +177,31 @@ const likeUser = async (req, res) => {
       io.emit("likeReceived", { likerId, likedId });
     }
 
-    return res.status(200).json({ message: "Like agregado y notificado" });
+    res.status(200).json({ message: "Like agregado y notificado" });
   } catch (error) {
     console.error("Error al manejar el like:", error);
-    return res.status(500).json({ error: "Error al manejar el like" });
+    res.status(500).json({ error: "Error al manejar el like" });
   }
 };
 
-const getLikedUsers = async (req, res) => {
+type LikedUser = {
+  liked: {
+    id: number;
+    name: string;
+    profilePicture: string | null;
+    likes: number;
+    about: string | null;
+  };
+};
+export const getLikedUsers = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
   const { userId } = req.query;
-  console.log("userId", userId);
+
   try {
     const likedUsers = await prisma.userLike.findMany({
-      where: { likerId: parseInt(userId, 10) },
+      where: { likerId: Number(userId) },
       select: {
         liked: {
           select: {
@@ -193,18 +214,31 @@ const getLikedUsers = async (req, res) => {
         },
       },
     });
-    return res.status(200).json(likedUsers.map(({ liked }) => liked));
+    res.status(200).json(likedUsers.map(({ liked }: LikedUser) => liked));
   } catch (error) {
     console.error("Error al obtener los likes:", error);
-    return res.status(500).json({ error: "Error al obtener los likes" });
+    res.status(500).json({ error: "Error al obtener los likes" });
   }
 };
 
-const getUsersWhoLiked = async (req, res) => {
+type LikerUser = {
+  liker: {
+    id: number;
+    name: string;
+    profilePicture: string | null;
+    likes: number;
+    about: string | null;
+  };
+};
+
+export const getUsersWhoLiked = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
   const { userId } = req.query;
   try {
     const usersWhoLiked = await prisma.userLike.findMany({
-      where: { likedId: parseInt(userId, 10) },
+      where: { likedId: Number(userId) },
       select: {
         liker: {
           select: {
@@ -217,20 +251,22 @@ const getUsersWhoLiked = async (req, res) => {
         },
       },
     });
-    return res.status(200).json(usersWhoLiked.map(({ liker }) => liker));
+    res.status(200).json(usersWhoLiked.map(({ liker }: LikerUser) => liker));
   } catch (error) {
     console.error("Error al obtener los usuarios que dieron like:", error);
-    return res
-      .status(500)
-      .json({ error: "Error al obtener los likes recibidos" });
+    res.status(500).json({ error: "Error al obtener los likes recibidos" });
   }
 };
 
-const deleteProfilePicture = async (req, res) => {
+export const deleteProfilePicture = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
   const { userId } = req.body;
 
   if (!userId) {
-    return res.status(400).json({ error: "userId es requerido" });
+    res.status(400).json({ error: "userId es requerido" });
+    return;
   }
 
   try {
@@ -239,22 +275,24 @@ const deleteProfilePicture = async (req, res) => {
       data: { profilePicture: null },
     });
 
-    return res
+    res
       .status(200)
       .json({ message: "Imagen de perfil eliminada", user: updatedUser });
   } catch (error) {
     console.error(error);
-    return res
-      .status(500)
-      .json({ error: "Error al eliminar la imagen de perfil" });
+    res.status(500).json({ error: "Error al eliminar la imagen de perfil" });
   }
 };
 
-const getUsersSentMessages = async (req, res) => {
+export const getUsersSentMessages = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
   const { userId } = req.query;
 
   if (!userId) {
-    return res.status(400).json({ error: "El ID del usuario es requerido" });
+    res.status(400).json({ error: "El ID del usuario es requerido" });
+    return;
   }
 
   try {
@@ -262,11 +300,11 @@ const getUsersSentMessages = async (req, res) => {
       where: {
         OR: [
           {
-            senderId: parseInt(userId, 10), // Mensajes enviados
+            senderId: Number(userId), // Mensajes enviados
             isInteracted: true,
           },
           {
-            receiverId: parseInt(userId, 10), // Mensajes recibidos
+            receiverId: Number(userId), // Mensajes recibidos
             isPending: false, // Ya leídos
           },
         ],
@@ -275,28 +313,37 @@ const getUsersSentMessages = async (req, res) => {
     });
 
     const userIds = [
-      ...new Set(messages.flatMap((msg) => [msg.senderId, msg.receiverId])),
-    ].filter((id) => id !== parseInt(userId, 10)); // Excluir el propio ID
+      ...new Set(
+        messages.flatMap((msg: { senderId: any; receiverId: any }) => [
+          msg.senderId,
+          msg.receiverId,
+        ])
+      ),
+    ].filter((id) => id !== Number(userId)); // Excluir el propio ID
 
     const users = await prisma.user.findMany({
       where: { id: { in: userIds } },
     });
 
-    return res.status(200).json(users);
+    res.status(200).json(users);
   } catch (error) {
     console.error(
       "Error al obtener los usuarios con los que se ha interactuado:",
       error
     );
-    return res.status(500).json({ error: "Error al obtener los usuarios" });
+    res.status(500).json({ error: "Error al obtener los usuarios" });
   }
 };
 
-const getUsersWithPendingMessages = async (req, res) => {
+export const getUsersWithPendingMessages = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
   const { userId } = req.query;
 
   if (!userId) {
-    return res.status(400).json({ error: "El ID del usuario es requerido" });
+    res.status(400).json({ error: "El ID del usuario es requerido" });
+    return;
   }
 
   try {
@@ -335,12 +382,14 @@ const getUsersWithPendingMessages = async (req, res) => {
 
     // Obtenemos los usuarios que enviaron los mensajes pendientes
     const senderIds = [
-      ...new Set(receivedMessages.map((message) => message.senderId)),
+      ...new Set(
+        receivedMessages.map((message: { senderId: any }) => message.senderId)
+      ),
     ];
     const users = await prisma.user.findMany({
       where: { id: { in: senderIds } },
     });
-    return res.status(200).json({
+    res.status(200).json({
       users,
       firstPendingMessage: firstMessage,
     });
@@ -349,13 +398,16 @@ const getUsersWithPendingMessages = async (req, res) => {
       "Error al obtener los usuarios con mensajes pendientes:",
       error
     );
-    return res
+    res
       .status(500)
       .json({ error: "Error al obtener los usuarios con mensajes pendientes" });
   }
 };
 
-const updatedUser = async (req, res) => {
+export const updatedUser = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
   const { userId, ...updates } = req.body;
   try {
     const updatedUser = await prisma.user.update({
@@ -377,7 +429,10 @@ const updatedUser = async (req, res) => {
   }
 };
 
-const deleteUser = async (req, res) => {
+export const deleteUser = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
   const { userId } = req.params;
   const { password, isBiometric } = req.body;
 
@@ -387,19 +442,20 @@ const deleteUser = async (req, res) => {
     });
 
     if (!user) {
-      return res.status(404).json({ message: "User not found" });
+      res.status(404).json({ message: "User not found" });
+      return;
     }
 
     if (!isBiometric) {
       if (!user.password) {
-        return res
-          .status(400)
-          .json({ message: "No password set for this account" });
+        res.status(400).json({ message: "No password set for this account" });
+        return;
       }
 
       const isMatch = await bcrypt.compare(password, user.password);
       if (!isMatch) {
-        return res.status(401).json({ message: "Incorrect password" });
+        res.status(401).json({ message: "Incorrect password" });
+        return;
       }
     }
 
@@ -410,19 +466,4 @@ const deleteUser = async (req, res) => {
     console.error(error);
     res.status(500).json({ message: "Internal Server Error" });
   }
-};
-
-module.exports = {
-  updateProfilePicture,
-  getUserById,
-  getAllUser,
-  saveNotificationToken,
-  likeUser,
-  getLikedUsers,
-  getUsersWhoLiked,
-  deleteProfilePicture,
-  getUsersSentMessages,
-  getUsersWithPendingMessages,
-  updatedUser,
-  deleteUser,
 };

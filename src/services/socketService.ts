@@ -1,10 +1,11 @@
-const { Server } = require("socket.io");
-const prisma = require("../prisma");
-const sendPushNotification = require("./notificationService");
+import { Server } from "socket.io";
+import { Server as HttpServer } from "http";
+import prisma from "../prisma";
+import sendPushNotification from "./notificationService";
 
-let io;
+export let io: Server;
 
-const haveUsersInteracted = async (user1Id, user2Id) => {
+const haveUsersInteracted = async (user1Id: any, user2Id: any) => {
   const interaction = await prisma.message.findFirst({
     where: {
       OR: [
@@ -20,7 +21,7 @@ const haveUsersInteracted = async (user1Id, user2Id) => {
   return !!interaction;
 };
 
-const getPendingMessagesCount = async (userId) => {
+const getPendingMessagesCount = async (userId: any) => {
   return await prisma.message.count({
     where: {
       receiverId: Number(userId),
@@ -30,7 +31,7 @@ const getPendingMessagesCount = async (userId) => {
   });
 };
 
-const socketService = (server) => {
+export const socketService = (server: HttpServer) => {
   io = new Server(server);
 
   io.on("connection", (socket) => {
@@ -43,13 +44,13 @@ const socketService = (server) => {
       console.log("count", pendingCount);
     });
 
-    const createRoomId = (senderId, receiverId) => {
+    const createRoomId = (senderId: number, receiverId: number) => {
       return senderId < receiverId
         ? `${senderId}-${receiverId}`
         : `${receiverId}-${senderId}`;
     };
 
-    const updatePendingMessages = async (userId) => {
+    const updatePendingMessages = async (userId: { toString: () => any }) => {
       const pendingCount = await getPendingMessagesCount(userId);
       io.to(userId.toString()).emit("pendingMessages", { count: pendingCount });
     };
@@ -111,7 +112,7 @@ const socketService = (server) => {
             const data = {
               senderId,
               receiverId,
-              userName: sender.name,
+              userName: sender?.name,
               isPending: !hasInteracted,
             };
             await sendPushNotification(
@@ -195,5 +196,3 @@ const socketService = (server) => {
     });
   });
 };
-
-module.exports = { socketService, io };
